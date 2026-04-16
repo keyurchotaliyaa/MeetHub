@@ -13,6 +13,9 @@ import StopScreenShareIcon from '@mui/icons-material/StopScreenShare'
 import ChatIcon from '@mui/icons-material/Chat'
 import server from '../environment';
 
+// 🔥 Speech Recognition Setup
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
 const server_url = server;
 
 var connections = {};
@@ -29,6 +32,10 @@ export default function VideoMeetComponent() {
     let socketIdRef = useRef();
 
     let localVideoref = useRef();
+
+     // 🔥 ADD HERE
+    const recognitionRef = useRef(null);
+    const transcriptRef = useRef("");
 
     let [videoAvailable, setVideoAvailable] = useState(true);
 
@@ -69,6 +76,39 @@ export default function VideoMeetComponent() {
         getPermissions();
 
     })
+
+    //AI Summary UseEffect
+    useEffect(() => {
+    if (!SpeechRecognition) {
+        console.log("Speech Recognition not supported");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+        let finalText = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            let transcript = event.results[i][0].transcript;
+
+            if (event.results[i].isFinal) {
+                finalText += transcript + " ";
+            }
+        }
+
+        // 🔥 Store final transcript
+        transcriptRef.current += finalText;
+
+        console.log("Transcript:", transcriptRef.current);
+    };
+
+    recognitionRef.current = recognition;
+
+}, []);
 
     let getDislayMedia = () => {
         if (screen) {
@@ -400,13 +440,25 @@ export default function VideoMeetComponent() {
         setScreen(!screen);
     }
 
-    let handleEndCall = () => {
-        try {
-            let tracks = localVideoref.current.srcObject.getTracks()
-            tracks.forEach(track => track.stop())
-        } catch (e) { }
-        window.location.href = "/"
+   let handleEndCall = async () => {
+    try {
+        let tracks = localVideoref.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+    } catch (e) {}
+
+    // 🔥 STOP SPEECH
+    if (recognitionRef.current) {
+        recognitionRef.current.stop();
     }
+
+    // 🔥 CHECK DATA (for now just log)
+    console.log("FINAL TRANSCRIPT:", transcriptRef.current);
+    console.log("CHAT MESSAGES:", messages);
+
+    // (Backend call baad me add karenge)
+
+    window.location.href = "/";
+}
 
     let openChat = () => {
         setModal(true);
@@ -440,10 +492,15 @@ export default function VideoMeetComponent() {
     }
 
     
-    let connect = () => {
-        setAskForUsername(false);
-        getMedia();
+   let connect = () => {
+    setAskForUsername(false);
+    getMedia();
+
+    // 🔥 START SPEECH
+    if (recognitionRef.current) {
+        recognitionRef.current.start();
     }
+}
 
 
     return (
